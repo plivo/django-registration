@@ -33,21 +33,22 @@ class _MockRequestClient(Client):
         
         """
         environ = {
-            'HTTP_COOKIE':      self.cookies,
-            'PATH_INFO':         '/',
-            'QUERY_STRING':      '',
-            'REMOTE_ADDR':       '127.0.0.1',
-            'REQUEST_METHOD':    'GET',
-            'SCRIPT_NAME':       '',
-            'SERVER_NAME':       'testserver',
-            'SERVER_PORT':       '80',
-            'SERVER_PROTOCOL':   'HTTP/1.1',
-            'wsgi.version':      (1,0),
-            'wsgi.url_scheme':   'http',
-            'wsgi.errors':       self.errors,
-            'wsgi.multiprocess': True,
-            'wsgi.multithread':  False,
-            'wsgi.run_once':     False,
+            'HTTP_COOKIE': self.cookies,
+            'PATH_INFO': '/',
+            'QUERY_STRING': '',
+            'REMOTE_ADDR': '127.0.0.1',
+            'REQUEST_METHOD': 'GET',
+            'SCRIPT_NAME': '',
+            'SERVER_NAME': 'testserver',
+            'SERVER_PORT': '80',
+            'SERVER_PROTOCOL': 'HTTP/1.1',
+            'wsgi.version': (1,0),
+            'wsgi.url_scheme': 'http',
+            'wsgi.errors': self.errors,
+            'wsgi.multiprocess':True,
+            'wsgi.multithread': False,
+            'wsgi.run_once': False,
+            'wsgi.input': None,
             }
         environ.update(self.defaults)
         environ.update(request)
@@ -124,7 +125,7 @@ class DefaultRegistrationBackendTests(TestCase):
         """
         self.old_activation = getattr(settings, 'ACCOUNT_ACTIVATION_DAYS', None)
         if self.old_activation is None:
-            settings.ACCOUNT_ACTIVATION_DAYS = 7
+            settings.ACCOUNT_ACTIVATION_DAYS = 7 # pragma: no cover
 
     def tearDown(self):
         """
@@ -133,7 +134,7 @@ class DefaultRegistrationBackendTests(TestCase):
 
         """
         if self.old_activation is None:
-            settings.ACCOUNT_ACTIVATION_DAYS = self.old_activation
+            settings.ACCOUNT_ACTIVATION_DAYS = self.old_activation # pragma: no cover
 
     def test_registration(self):
         """
@@ -169,7 +170,6 @@ class DefaultRegistrationBackendTests(TestCase):
         
         """
         Site._meta.installed = False
-
         new_user = self.backend.register(_mock_request(),
                                          username='bob',
                                          email='bob@example.com',
@@ -351,6 +351,31 @@ class DefaultRegistrationBackendTests(TestCase):
         admin_class.resend_activation_email(_mock_request(),
                                             RegistrationProfile.objects.all())
         self.assertEqual(len(mail.outbox), 2) # No additional email because the account has activated.
+
+    def test_email_send_action_no_sites(self):
+        """
+        Test re-sending of activation emails via admin action when
+        ``django.contrib.sites`` is not installed; the fallback will
+        be a ``RequestSite`` instance.
+        
+        """
+        Site._meta.installed = False
+        admin_class = RegistrationAdmin(RegistrationProfile, admin.site)
+        
+        alice = self.backend.register(_mock_request(),
+                                      username='alice',
+                                      email='alice@example.com',
+                                      password1='swordfish')
+        
+        admin_class.resend_activation_email(_mock_request(),
+                                            RegistrationProfile.objects.all())
+        self.assertEqual(len(mail.outbox), 2) # One on registering, one more on the resend.
+        
+        RegistrationProfile.objects.filter(user=alice).update(activation_key=RegistrationProfile.ACTIVATED)
+        admin_class.resend_activation_email(_mock_request(),
+                                            RegistrationProfile.objects.all())
+        self.assertEqual(len(mail.outbox), 2) # No additional email because the account has activated.
+        Site._meta.installed = True
 
     def test_activation_action(self):
         """
