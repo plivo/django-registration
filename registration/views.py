@@ -182,7 +182,7 @@ def register(request, backend, success_url=None, form_class=None,
         form_class = backend.get_form_class(request)
 
     if request.method == 'POST':
-        form = form_class(data=request.POST, files=request.FILES)
+        form = form_class(data=request.POST, files=request.FILES, request=request)
         if form.is_valid():
             new_user = backend.register(request, **form.cleaned_data)
             if success_url is None:
